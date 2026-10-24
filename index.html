@@ -141,7 +141,27 @@ async function runHistoricalBacktest(){
  }catch(e){if(token===historicalRequest)$('backtestStatus').textContent='Could not analyze this game log: '+e.message+' The source may be unavailable or missing required columns.'}
  finally{clearTimeout(timeout);if(token===historicalRequest)$('runBacktest').disabled=false}
 }
-async function comparePlayers(){const ids=$('multiIds').value.split(',').map(x=>x.trim()).filter(Boolean);$('multiStatus').textContent='Compare '+ids.length+' players using the historical research feed.';for(const id of ids){const r=await fetch('https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/'+id+'/gamelog?season=2025');const p=parseHistoricalGameLog(await r.json());$('multiStatus').textContent=id+': '+p.games.length+' games read.'}}function renderPlayerBoxscore(data,gameName){
+async function comparePlayers(){
+ const ids=$('multiIds').value.split(',').map(x=>x.trim()).filter(Boolean);
+ if(ids.length<2||ids.length>5||ids.some(x=>!/^\d+$/.test(x))){$('multiStatus').textContent='Enter 2–5 numeric IDs.';return}
+ $('multiButton').disabled=true;const results=[];
+ for(const id of ids){
+  $('multiStatus').textContent='Loading '+id+'…';
+  try{
+   const r=await fetch('https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/'+id+'/gamelog?season=2025');
+   if(!r.ok)throw Error('Unavailable');
+   const p=parseHistoricalGameLog(await r.json()),games=p.games.filter(g=>g.minutes===null||g.minutes>=10),moves=[];
+   for(let i=20;i<games.length;i++){const expected=games.slice(i-20,i).reduce((s,g)=>s+g.impact,0)/20;if(expected>0)moves.push(labMove(games[i].impact,expected,.06))}
+   if(!moves.length)throw Error('Insufficient games');
+   const cap=moves.filter(x=>Math.abs(x)>=.049999).length;
+   results.push([id,games.length,moves.length,(moves.reduce((s,x)=>s+Math.abs(x),0)/moves.length*100).toFixed(2)+'%',cap+' / '+moves.length,(cap/moves.length*100).toFixed(1)+'%'])
+  }catch(e){results.push([id,'Unavailable',e.message,'—','—','—'])}
+ }
+ const table=document.createElement('table');table.className='backtest-table';
+ for(const vals of [['ESPN ID','Eligible games','Evaluations','Average move','Cap hits','Cap rate'],...results]){const tr=document.createElement('tr');for(const val of vals){const cell=document.createElement('td');cell.textContent=val;tr.appendChild(cell)}table.appendChild(tr)}
+ $('multiResults').replaceChildren(table);$('multiStatus').textContent='Comparison completed. No market changes.';$('multiButton').disabled=false
+}
+function renderPlayerBoxscore(data,gameName){
  const groups=Array.isArray(data.boxscore?.players)?data.boxscore.players:[];
  const container=$('boxscoreContents');container.replaceChildren();
  let playerCount=0;
