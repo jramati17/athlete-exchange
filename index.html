@@ -88,6 +88,34 @@ function renderHistoricalResults(games,athleteId,season){
  }
  compareTable.appendChild(compareBody);compareScroll.appendChild(compareTable);parent.appendChild(compareScroll);
  const note=document.createElement('p');note.className='muted mini';note.textContent='Compare settings for stability. Do not select a winning model from cap rates alone: a formula with zero sensitivity always produces zero movement. Independent stat verification, varied player samples and explicit product goals are required.';parent.appendChild(note);
+ const comparison=document.createElement('h3');comparison.textContent='V12 baseline comparison (same evaluation games)';parent.appendChild(comparison);
+ const explanation=document.createElement('p');explanation.className='muted mini';explanation.textContent='All three windows use games 21 onward, 0.06 sensitivity, and the same +/−5% limit. Previous eligible games only; this compares volatility, not economic accuracy.';parent.appendChild(explanation);
+ const shared=games.slice(20).map((g,i)=>({g,index:i+20}));
+ const summaryRows=[5,10,20].map(n=>{
+  const moves=shared.map(({g,index})=>{
+   const expected=games.slice(index-n,index).reduce((s,x)=>s+x.impact,0)/n;
+   return expected>0?labMove(g.impact,expected,.06):null
+  });
+  return {n,moves}
+ });
+ const common=shared.map((_,i)=>i).filter(i=>summaryRows.every(r=>r.moves[i]!==null));
+ const comparisonScroll=document.createElement('div');comparisonScroll.className='backtest-scroll';
+ const comparisonTable=document.createElement('table');comparisonTable.className='backtest-table';
+ const head=document.createElement('tr');
+ for(const t of ['Baseline','Matched games','Average absolute move','Cap hits','Cap rate']){const th=document.createElement('th');th.textContent=t;head.appendChild(th)}
+ const thead2=document.createElement('thead');thead2.appendChild(head);comparisonTable.appendChild(thead2);
+ const body=document.createElement('tbody');
+ for(const r of summaryRows){
+  const m=common.map(i=>r.moves[i]);const count=m.length;
+  const hits=m.filter(v=>Math.abs(v)>=.049999).length;
+  const avg=count?m.reduce((s,v)=>s+Math.abs(v),0)/count:0;
+  const vals=[r.n+' previous',String(count),count?(avg*100).toFixed(2)+'%':'N/A',count?hits+' / '+count:'N/A',count?(hits/count*100).toFixed(1)+'%':'N/A'];
+  const row=document.createElement('tr');if(r.n===window)row.style.background='#243855';
+  for(const value of vals){const td=document.createElement('td');td.textContent=value;row.appendChild(td)}
+  body.appendChild(row)
+ }
+ comparisonTable.appendChild(body);comparisonScroll.appendChild(comparisonTable);parent.appendChild(comparisonScroll);
+ const caveat=document.createElement('p');caveat.className='muted mini';caveat.textContent=common.length+' matched evaluations. Lower cap frequency alone cannot establish the best baseline. The minutes filter and source data still require validation.';parent.appendChild(caveat);
  const title=document.createElement('h3');title.textContent='Game-by-game detail — current V9 sensitivity (0.12)';title.style.margin='20px 0 4px';parent.appendChild(title);
  const scrolling=document.createElement('div');scrolling.className='backtest-scroll';const table=document.createElement('table');table.className='backtest-table';const thead=document.createElement('thead'),h=document.createElement('tr');
  for(const label of ['Date','Opponent','Impact','Prior '+window+' avg','Hypothetical move']){const th=document.createElement('th');th.textContent=label;h.appendChild(th)}thead.appendChild(h);table.appendChild(thead);
