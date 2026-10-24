@@ -161,6 +161,30 @@ async function comparePlayers(){
  for(const vals of [['ESPN ID','Eligible games','Evaluations','Average move','Cap hits','Cap rate'],...results]){const tr=document.createElement('tr');for(const val of vals){const cell=document.createElement('td');cell.textContent=val;tr.appendChild(cell)}table.appendChild(tr)}
  $('multiResults').replaceChildren(table);$('multiStatus').textContent='Comparison completed. No market changes.';$('multiButton').disabled=false
 }
+function addConsistencyReport(out,previous,recent){
+ const values=a=>a.map(g=>g.impact);
+ const median=a=>{const x=[...a].sort((p,q)=>p-q);return (x[4]+x[5])/2};
+ const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
+ const deviation=a=>Math.sqrt(a.reduce((s,v)=>s+(v-mean(a))**2,0)/a.length);
+ const past=values(previous),latest=values(recent);
+ const pMedian=median(past),rMedian=median(latest),pSD=deviation(past),rSD=deviation(latest);
+ const max=Math.max(...latest),without=(latest.reduce((s,v)=>s+v,0)-max)/9;
+ const meanDelta=mean(latest)-mean(past),medianDelta=rMedian-pMedian,withoutDelta=without-mean(past);
+ const aligned=Math.sign(meanDelta)===Math.sign(medianDelta);
+ const heading=document.createElement('h3');heading.textContent='V15 — Consistency and outlier check';heading.style.margin='20px 0 8px';out.appendChild(heading);
+ const note=document.createElement('p');note.className='muted mini';
+ note.textContent='Standard deviation measures game-to-game variation (lower means more consistent). Median reduces the influence of unusually high or low games. The last row is a stress test that excludes the highest recent game; it is not the main performance estimate.';
+ out.appendChild(note);
+ const scroll=document.createElement('div');scroll.className='backtest-scroll';
+ const table=document.createElement('table');table.className='backtest-table';
+ const rows=[['Metric','Earlier 10','Latest 10'],['Average impact',mean(past).toFixed(1),mean(latest).toFixed(1)],['Median impact',pMedian.toFixed(1),rMedian.toFixed(1)],['Standard deviation',pSD.toFixed(1),rSD.toFixed(1)],['Minimum impact',Math.min(...past).toFixed(1),Math.min(...latest).toFixed(1)],['Maximum impact',Math.max(...past).toFixed(1),max.toFixed(1)],['Average without top recent game','—',without.toFixed(1)]];
+ for(let i=0;i<rows.length;i++){const tr=document.createElement('tr');for(const val of rows[i]){const cell=document.createElement(i===0?'th':'td');cell.textContent=val;tr.appendChild(cell)}table.appendChild(tr)}
+ scroll.appendChild(table);out.appendChild(scroll);
+ const observation=document.createElement('div');observation.className='backtest-summary';
+ const direction=meanDelta>0?'higher':meanDelta<0?'lower':'unchanged';
+ observation.textContent='Interpretation: recent mean is '+direction+' by '+Math.abs(meanDelta).toFixed(1)+' impact points; median change '+(medianDelta>=0?'+':'')+medianDelta.toFixed(1)+'. '+(aligned?'Mean and median move in the same direction. ':'Mean and median do not point in the same direction. ')+'After removing the top recent game ('+max.toFixed(1)+'), the recent average becomes '+without.toFixed(1)+' versus '+mean(past).toFixed(1)+' previously ('+(withoutDelta>=0?'+':'')+withoutDelta.toFixed(1)+'). Recent variation is '+(rSD>pSD?'higher':rSD<pSD?'lower':'the same')+' than the earlier period. This is descriptive evidence only—not a confidence level, growth forecast, or price signal.';
+ out.appendChild(observation)
+}
 async function analyzeDevelopment(){
  const id=$('developmentId').value.trim(),season=$('developmentSeason').value;
  if(!/^\d{1,12}$/.test(id)){$('developmentStatus').textContent='Enter a numeric ESPN player ID.';return}
@@ -187,6 +211,7 @@ async function analyzeDevelopment(){
   const rows=[['Window','Games','Average impact','Lowest impact','Highest impact'],['Earlier 10','10',a.toFixed(1),Math.min(...previous.map(g=>g.impact)).toFixed(1),Math.max(...previous.map(g=>g.impact)).toFixed(1)],['Latest 10','10',b.toFixed(1),Math.min(...recent.map(g=>g.impact)).toFixed(1),Math.max(...recent.map(g=>g.impact)).toFixed(1)]];
   for(const vals of rows){const tr=document.createElement('tr');for(const val of vals){const td=document.createElement('td');td.textContent=val;tr.appendChild(td)}table.appendChild(tr)}
   chart.appendChild(table);out.appendChild(chart);
+  addConsistencyReport(out,previous,recent);
   $('developmentStatus').textContent='Trend analysis finished. No trading data changed.';
  }catch(e){$('developmentStatus').textContent='Could not analyze trend: '+e.message}
  finally{clearTimeout(timeout);button.disabled=false}
